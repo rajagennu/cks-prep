@@ -1,0 +1,6 @@
+- kubectl talks to API Server to perform any tasks in the k8s cluster.
+- A Node can become a worker node by having kubelet service installed in it, with container runtime and by joining a k8s cluster, it can receive the workloads scheduled by API Server.
+- the kubelet service running inside the POD will notify API Server for every lifecycle event of every POD thats there in that node. For example, if new pod request received, then creating pod, start pod, if any issues and pod deleted, all these events will be notified to API Server.
+- Scheduler: Scheduler talks to API Server, scheduler decides on which node the current pod should run. It has all the logic of taints, affinity rules, tolerations so it will decide the best node on which the pod can be scheduled.
+- ETCD ( cluster): A key value pair datastorage, used by k8s for storing all cluster related information. Only API server talks to ETCD ( Cluster)
+- Controller Manager:
