@@ -1,9 +1,15 @@
 ### Build container
+```bash
 podman build -t <tag_name> -f <Dockerfile> .
-
+```
 ### Reset Podman
+
+```
 podman system reset -f
+```
 [podmand reset](https://docs.podman.io/en/latest/markdown/podman-system-reset.1.html)
+
+
 Issue faced
 
 ```bash
@@ -75,7 +81,9 @@ root@cks-master:~#
 
 
 ### Start a container
-podman run --name simple simple
 
+```bash
+podman run --name simple simple
+```
 
 
