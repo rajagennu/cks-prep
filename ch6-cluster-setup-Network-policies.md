@@ -200,6 +200,7 @@ curl exec front -- curl <ip of backend pod from 'k get pods -o wide' command>
 
 Now it should work.
 
+Now lets create a new database pod in a new namespace cassandra
 
 
 # References
