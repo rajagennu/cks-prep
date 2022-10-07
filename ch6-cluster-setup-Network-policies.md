@@ -200,8 +200,157 @@ curl exec front -- curl <ip of backend pod from 'k get pods -o wide' command>
 
 Now it should work.
 
-Now lets create a new database pod in a new namespace cassandra
+Now lets create a new database pod in a new namespace 'namespace-casandra'
+Then allow the backend traffic to pod-cassandra [backend:Egress]
+and allow pod-cassanda to accept that traffic so [cassandra:Igress]
 
+```
+kubectl create ns cassandra
+kubectl edit ns cassandra << to add a label >>
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  <here add the label section>
+  labels:
+    ns: cassandra
+```
+- Network policies uses selectors that always needs labels to match. podSelector, namespaceSelector etc.
+
+```
+k -n cassandra run cassandra --image=linux
+```
+Now we have to allow backend traffic to cassandra but to namespace cassandra, so it will external traffic, so policy will be Egress and there will be a 'to' policy
+
+So take the earlier policy we have created for backend
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      run: backend
+  policyTypes:
+  - Ingress # allow incoming traffic from frontend pods
+  - Egress # allow outgoing traffic to cassadra namespace
+  ingress:
+    - from
+      - podSelector:
+          matchLabels:
+            run: frontend
+  egress
+    - to
+      - namespaceSelector:
+        matchLabels:
+          ns: cassandra
+          
+```
+
+```
+kubectl apply -f policy.file.yaml
+kubectl exec  backend -- curl <ip of cassandra>
+```
+As network polices are namesapce bounded, lets apply a default deny policy for cassandra namespace as well.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-cassandra
+  namespace: cassandra
+spec:
+  podSelector: {} # empty i.e to all pods in the namespace: default
+  policyTypes:
+  - Ingress # block incoming
+  - Egress # block outgoing
+```
+Now if you try access(income) backend from cassandra pod, it wont work. Lets add a Ingress rule for cassandra namespace to access traffice from default namespace.
+
+```
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cassandra
+  namespace: cassandra
+spec:
+  podSelector:
+    matchLabels:
+      run: cassandra
+  policyTypes:
+  - Ingress # allow incoming traffic from frontend pods
+  
+  ingress:
+    - from
+     - namespaceSelector:
+        matchLabels:
+          ns: default
+```
+- As above edit the default namespace and add a label as "ns: default"
+
+Now check again.
+```
+kubectl apply -f policy.file.yaml
+kubectl exec  backend -- curl <ip of cassandra>
+```
+
+Egress traffic policy with DNS
+
+```yaml
+controlplane $ cat network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: np
+  namespace: space1
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  
+  egress:
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            ns: space2
+    - ports:
+      - protocol: TCP
+        port: 53
+      - protocol: UDP
+        port: 53
+```
+
+Ingress traffic policy with DNS
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: np
+  namespace: space2
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            ns: space1
+    - ports:
+      - protocol: TCP
+        port: 53
+      - protocol: UDP
+        port: 53
+```
+
+# Exercise
+- From default namespace, allow traffic to cassandra namespace only port 80 and from only a specifc pod.
+- 
 
 # References
 
@@ -210,5 +359,8 @@ https://github.com/killer-sh/cks-course-environment/tree/master/course-content/c
 
 ### default-deny NP which still allows DNS resolution
 https://github.com/killer-sh/cks-course-environment/blob/master/course-content/cluster-setup/network-policies/default-deny/default-deny-allow-dns.yaml
+
+### docs - network-policies
+https://kubernetes.io/docs/concepts/services-networking/network-policies
 
 
