@@ -1,2 +1,204 @@
 # Cluster Setup - Control Access to GUI Elements
 
+## GUI elements and Dashboard
+
+- Only exposes services externally if needed.
+- Cluster internal services/dashboards can also be accessed using kubectl port-forward or kubectl proxy
+
+### kubectl proxy
+
+- create a proxy server between localhost and the kubernetes API server.
+- uses connection as configured in the kubeconfig
+- allows to access API locally just over http and without authentication.
+
+### kubectl port-forward
+- forward connections from a localhost-port to a pod port
+- more generic than kubectl proxy
+- can be used for all tcp traffic not just HTTP
+
+
+### Ingress 
+- using nginx is a reverse proxy  we can expose the dashboard and  we need to  implement the authentication mechanism in the nginx level to control the access.
+
+## Installation of k8s dashboard
+
+Installation: kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+
+URL : https://github.com/kubernetes/dashboard
+
+```bash
+root@cks-master:~# kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+namespace/kubernetes-dashboard created
+serviceaccount/kubernetes-dashboard created
+service/kubernetes-dashboard created
+secret/kubernetes-dashboard-certs created
+secret/kubernetes-dashboard-csrf created
+secret/kubernetes-dashboard-key-holder created
+configmap/kubernetes-dashboard-settings created
+role.rbac.authorization.k8s.io/kubernetes-dashboard created
+clusterrole.rbac.authorization.k8s.io/kubernetes-dashboard created
+rolebinding.rbac.authorization.k8s.io/kubernetes-dashboard created
+clusterrolebinding.rbac.authorization.k8s.io/kubernetes-dashboard created
+deployment.apps/kubernetes-dashboard created
+service/dashboard-metrics-scraper created
+deployment.apps/dashboard-metrics-scraper created
+root@cks-master:~# 
+```
+
+```bash
+root@cks-master:~# kubectl get pod,svc -n kubernetes-dashboard
+NAME                                            READY   STATUS              RESTARTS   AGE
+pod/dashboard-metrics-scraper-8c47d4b5d-kbkg5   0/1     ContainerCreating   0          41s
+pod/kubernetes-dashboard-67bd8fc546-69trc       1/1     Running             0          41s
+
+NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+service/dashboard-metrics-scraper   ClusterIP   10.111.166.198   <none>        8000/TCP   41s
+service/kubernetes-dashboard        ClusterIP   10.104.154.6     <none>        443/TCP    41s
+root@cks-master:~# 
+```
+
+## Dashboard access
+
+- Lets allow dashboard access externally. 
+- To do this we have to edit dashboard deployment and find `-args` section and add a new arg `- --insecure-port=9090`
+- We will have another arg like `auto-generate-certificates` set this to false.
+- and update the liveness probe to listen on HTTP traffic over 9090 port.
+- All k8s dashboard args are available at https://github.com/kubernetes/dashboard/blob/master/docs/common/dashboard-arguments.md 
+
+
+```
+- args:
+        - --auto-generate-certificates=false
+        - --namespace=kubernetes-dashboard
+        - --insecure-port=9090
+image: kubernetesui/dashboard:v2.7.0
+imagePullPolicy: Always
+livenessProbe:
+    failureThreshold: 3
+    httpGet:
+    path: /
+    port: 9090
+    scheme: HTTP
+```
+
+- Make sure changes are committed and new pod with changes already created and running
+
+```
+root@cks-master:~# kubectl get pods -n kubernetes-dashboard
+NAME                                        READY   STATUS    RESTARTS   AGE
+dashboard-metrics-scraper-8c47d4b5d-kbkg5   1/1     Running   0          8m40s
+kubernetes-dashboard-548fcf6999-gvhpk       1/1     Running   0          23s
+root@cks-master:~# 
+```
+- Now lets update the ClusterIP service to NodePort service. 
+- Edit the service file of kubernetes-dashboard
+- changes the service type to node port and update the port and target port to 9090
+
+```
+root@cks-master:~# kubectl get svc -n kubernetes-dashboard
+NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+dashboard-metrics-scraper   ClusterIP   10.111.166.198   <none>        8000/TCP   9m25s
+kubernetes-dashboard        ClusterIP   10.104.154.6     <none>        443/TCP    9m25s
+```
+
+```
+    spec:
+        ports:
+            - port: 9090
+              protocol: TCP
+              targetPort: 9090
+            selector:
+              k8s-app: kubernetes-dashboard
+            sessionAffinity: None
+            type: NodePort
+```
+
+```
+root@cks-master:~# kubectl get svc -n kubernetes-dashboard
+NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+dashboard-metrics-scraper   ClusterIP   10.111.166.198   <none>        8000/TCP         11m
+kubernetes-dashboard        NodePort    10.104.154.6     <none>        9090:31289/TCP   11m
+```
+
+- Get the IP of worker node on which the pod/deployment running  and node port (31289) from get svc command, try accessing the browser.
+
+```
+root@cks-master:~# kubectl get svc,pods -n kubernetes-dashboard -o wide
+NAME                                TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE     SELECTOR
+service/dashboard-metrics-scraper   ClusterIP   10.105.52.78   <none>        8000/TCP         3m40s   k8s-app=dashboard-metrics-scraper
+service/kubernetes-dashboard        NodePort    10.97.175.59   <none>        9090:30786/TCP   3m41s   k8s-app=kubernetes-dashboard
+
+NAME                                            READY   STATUS    RESTARTS      AGE     IP           NODE         NOMINATED NODE   READINESS GATES
+pod/dashboard-metrics-scraper-8c47d4b5d-28tv4   1/1     Running   0             3m40s   172.16.1.6   cks-worker   <none>           <none>
+pod/kubernetes-dashboard-8d6f5697f-2rg95        1/1     Running   1 (49s ago)   110s    172.16.1.8   cks-worker   <none>           <none>
+```
+
+- here worker node port is cks-worker, so its IP is 192.168.56.20 
+- so access the service on http://192.168.56.20:30786/
+
+### RBAC for the dashboard
+
+create a rolebinding for clusterrole:view ( cluster roles and rolebindings are not namespace bounded)
+
+```bash
+root@cks-master:~# kubectl -n kubernetes-dashboard get svc
+NAME                        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+dashboard-metrics-scraper   ClusterIP   10.105.52.78   <none>        8000/TCP         13h
+kubernetes-dashboard        NodePort    10.97.175.59   <none>        9090:30786/TCP   13h
+root@cks-master:~# kubectl -n kubernetes-dashboard get sa
+NAME                   SECRETS   AGE
+default                0         13h
+kubernetes-dashboard   0         13h
+root@cks-master:~# kubectl  get clusterroles | grep view
+system:aggregate-to-view                                               2022-10-10T02:30:52Z
+system:public-info-viewer                                              2022-10-10T02:30:52Z
+view             
+```
+
+lets create a rolebinding
+
+```bash
+kubectl -n kubernetes-dashboard create rolebinding insecure --serviceaccount kubernetes-dashboard:kubernetes-dashboard --clusterrole view -o yaml --dry-run=client
+```
+
+```
+root@cks-master:~# kubectl -n kubernetes-dashboard create rolebinding insecure --serviceaccount kubernetes-dashboard:kubernetes-dashboard --clusterrole view -o yaml --dry-run=client
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  creationTimestamp: null
+  name: insecure
+  namespace: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+root@cks-master:~# 
+```
+
+- create the rolebinding by removing the -o and --dry-run flags.
+- by creating the rolebinding you only provide the access to kubernetes-dashboard namepsace for service account.
+- if you extend the access to clusterrolebinding, then kubernetes-dashboard service account will have access to all the resources in the entire cluster.
+
+```
+# role binding
+kubectl -n kubernetes-dashboard create rolebinding insecure --serviceaccount kubernetes-dashboard:kubernetes-dashboard --clusterrole view
+
+# cluster role binding
+kubectl -n kubernetes-dashboard create clusterrolebinding insecure --serviceaccount kubernetes-dashboard:kubernetes-dashboard --clusterrole view
+
+```
+
+Then check the kubernetes-dashboard again.
+
+# References
+
+https://github.com/kubernetes/dashboard/blob/master/docs/common/dashboard-arguments.md
+
+https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/README.md
+
+
