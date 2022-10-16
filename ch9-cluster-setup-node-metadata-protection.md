@@ -23,5 +23,25 @@ k get pod --show-labels
 k label pod nginx role=metadata-accessor
 ```
 
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metadata-server
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      trust: nope
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+          except:
+            - 1.1.1.1/32
+```
+
 # Ref
 - https://github.com/killer-sh/cks-course-environment/tree/master/course-content/cluster-setup/protect-node-metadata
