@@ -20,3 +20,8 @@ docker run --pid=host -v /etc:/etc:ro -v /var:/var:ro -t aquasec/kube-bench:late
 docker run --pid=host -v /etc:/etc:ro -v /var:/var:ro -t aquasec/kube-bench:latest run --targets=node --version 1.22
 
 - Just be familar with reading instructions and apply the rules. 
+
+### REF
+https://www.youtube.com/watch?v=53-v3stlnCo
+
+https://github.com/docker/docker-bench-security
