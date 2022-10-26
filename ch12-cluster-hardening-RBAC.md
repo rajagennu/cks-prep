@@ -445,3 +445,29 @@ NAME    READY   STATUS    RESTARTS       AGE
 nginx   1/1     Running   2 (6h8m ago)   16d
 root@cks-master:~# 
 ```
+
+### For service accounts
+
+```bash
+# create Namespaces
+k -n ns1 create sa pipeline
+k -n ns2 create sa pipeline
+
+# use ClusterRole view
+k get clusterrole view # there is default one
+k create clusterrolebinding pipeline-view --clusterrole view --serviceaccount ns1:pipeline --serviceaccount ns2:pipeline
+
+# manage Deployments in both Namespaces
+k create clusterrole -h # examples
+k create clusterrole pipeline-deployment-manager --verb create,delete --resource deployments
+# instead of one ClusterRole we could also create the same Role in both Namespaces
+
+k -n ns1 create rolebinding pipeline-deployment-manager --clusterrole pipeline-deployment-manager --serviceaccount ns1:pipeline
+k -n ns2 create rolebinding pipeline-deployment-manager --clusterrole pipeline-deployment-manager --serviceaccount ns2:pipeline
+
+# namespace ns1 deployment manager
+k auth can-i delete deployments --as system:serviceaccount:ns1:pipeline -n ns1 # YES
+k auth can-i create deployments --as system:serviceaccount:ns1:pipeline -n ns1 # YES
+k auth can-i update deployments --as system:serviceaccount:ns1:pipeline -n ns1 # NO
+k auth can-i update deployments --as system:serviceaccount:ns1:pipeline -n default # NO
+```
