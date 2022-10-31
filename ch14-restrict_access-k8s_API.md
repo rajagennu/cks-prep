@@ -103,7 +103,13 @@ Limit the node labels a kubelet can modify
 - k label node cks-worker node-restriction.kubernetes.io/test=yes # this wont work as api server has blocked this via above mentioned config param.
   
   
-  
+ ## Log locations
+ 
+/var/log/pods
+/var/log/containers
+crictl ps + crictl logs
+docker ps + docker logs (in case when Docker is used)
+kubelet logs: /var/log/syslog or journalctl
 
 
 
