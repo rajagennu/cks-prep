@@ -62,7 +62,48 @@ If you have cluster < 1.20, you can add this to kubeapi server yaml and reload t
 - k edit svc kubernetes, switch from ClusterIP to NodePort
 - copy the .kube/config to local machine. 
 - copy the port of the nodeport for kubernetes service
-- 
+- use the curl command as above to get the access. 
+- we can also send  remote commands from local kubectl
+- copy the .kube/config file from your cluster to local machine and save it like conf.
+- Note: using we can use a custom conf file with kubectl as below
+
+```
+k --kubeconfig conf get ns
+```
+- there will be a field called 'server' in the kubeconfig file. which represents the API server IP Address, if your conf file have NAT IP Address, make you replace the IP with public IP Address.
+- you might get invalid certificate as you are trying to connect with IP Address for which the certificate not generated, verify for what IP Addresses the certificate has been generated using below command,
+
+```
+openssl req -in <apiserver.crt> -text
+```
+- so instead of using public IP, by editing local /etc/hosts and a host entry for one of the CI Name with public IP and try again
+**<IP> kubernetes** 
+  
+- then try again 
+  
+  
+```
+k --kubeconfig conf get ns
+```
+  
+## Node restriction - Admission controller
+kube-apiserver --enable-admission-plugins=NodeRestriction
+Limit the node labels a kubelet can modify
+  
+- Ensure secure workload isolation via labels.
+
+- check in the master node, manifest kube api server yaml, check for --enable-admission-plugins, NodeRestriction is default. 
+  - login to a worker node and run k config view
+  - vim /etc/kubernetes/kubelet.conf
+  - export KUBECONFIG=/etc/kubernetes/kubelet.conf
+  - then from worker node, try 
+  k get ns # this wont work , because of node restriction
+  k get nodes # this works
+  
+- k label node cks-worker node-restriction.kubernetes.io/test=yes # this wont work as api server has blocked this via above mentioned config param.
+  
+  
+  
 
 
 
