@@ -1,3 +1,6 @@
 /.vagrant
 /ubuntu-bionic-18.04-cloudimg-console.log
 *.log
+/minikube_latest_amd64.deb
+0
+1000
