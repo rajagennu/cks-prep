@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privilegedpod
+spec:
+  containers:
+    - name: nginx
+      image: nginx
+      command:
+        - sh
+        - -c
+        - 'sleep 1d'
+      securityContext:
+        privileged: true
