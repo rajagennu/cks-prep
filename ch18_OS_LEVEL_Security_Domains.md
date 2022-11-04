@@ -198,3 +198,13 @@ kubectl create role psp-access-view --verb=use --resource=podsecuritypolicies
 kubectl create rolebinding psp-access-view --role=psp-access-view --serviceaccount=default:default
 
 ```
+
+Q : How to start privileged containers ?
+
+```
+containers:
+  - name: test
+    image: {operator-repo}/test
+    securityContext:
+      privileged: true
+```
